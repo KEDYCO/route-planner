@@ -2,6 +2,7 @@ package ar.edu.uade.route_planner.web;
 
 import ar.edu.uade.route_planner.service.GraphService;
 import ar.edu.uade.route_planner.repo.StationRepo;
+import ar.edu.uade.route_planner.repo.StationRepo.SimpleEdge;
 import ar.edu.uade.route_planner.repo.EdgeRecord;
 import lombok.RequiredArgsConstructor;
 
@@ -10,6 +11,10 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+
+
 
 @RestController
 @RequestMapping("/graph")
@@ -22,7 +27,7 @@ public class GraphController {
     // Endpoint de diagnóstico
     @GetMapping("/debug/edges")
     public Map<String, Object> debugEdges() {
-        List<EdgeRecord> edges = repo.allEdges();
+        List<SimpleEdge> edges = repo.allEdgesSimple();
         Map<String, Object> result = new HashMap<>();
         result.put("totalEdges", edges.size());
         result.put("edges", edges);
@@ -44,18 +49,23 @@ public class GraphController {
     }
 
     @GetMapping("/dijkstra")
-    public GraphService.DijkstraResult dijkstra(@RequestParam String from, 
-                                                @RequestParam String to) {
+    public GraphService.PathDto getMethodName(@RequestParam String from, @RequestParam String to) {
         return svc.dijkstra(from, to);
     }
 
     @GetMapping("/prim")
-    public GraphService.PrimResult primDirected(@RequestParam String from) {
-        return svc.primDirected(from);
+    public GraphService.MSTDto prim(@RequestParam String start) {
+        return svc.prim(start);
     }
-
+    
+    
     @GetMapping("/kruskal")
-    public GraphService.KruskalResult kruskal() {
+    public GraphService.MSTDto kruskal() {
         return svc.kruskal();
     }
+
+    
+
+   
+
 }

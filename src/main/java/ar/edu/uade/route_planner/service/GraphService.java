@@ -1,10 +1,16 @@
+// ============================================
+// GraphService.java
+// ============================================
 package ar.edu.uade.route_planner.service;
 
 import ar.edu.uade.route_planner.domain.Connection;
 import ar.edu.uade.route_planner.domain.Station;
-import ar.edu.uade.route_planner.repo.StationRepo;
 import ar.edu.uade.route_planner.repo.EdgeRecord;
+import ar.edu.uade.route_planner.repo.StationRepo;
+import ar.edu.uade.route_planner.service.GraphService.MSTEdge;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.neo4j.repository.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -16,7 +22,7 @@ public class GraphService {
 
     // ==================== BFS ====================
     public PathDto bfs(String from, String to, int maxDepth) {
-        if (Objects.equals(from, to)) return new PathDto(List.of(from), 0, List.of(from));
+        if (Objects.equals(from, to)) return new PathDto(List.of(from), 0, List.of(from), 0.0);
 
         Queue<String> q = new ArrayDeque<>();
         Map<String, String> parent = new HashMap<>();
@@ -40,14 +46,28 @@ public class GraphService {
                     parent.put(v, u);
                     if (v.equals(to)) {
                         List<String> path = reconstruct(parent, from, to);
-                        return new PathDto(path, path.size() - 1, new ArrayList<>(visited));
+                        return new PathDto(path, path.size() - 1, new ArrayList<>(visited), 0.0);
                     }
                     q.add(v);
                 }
             }
             depth++;
         }
-        return new PathDto(List.of(), -1, new ArrayList<>(visited));
+        return new PathDto(List.of(), -1, new ArrayList<>(visited), 0.0);
+    }
+
+    private List<String> reconstruct(Map<String, String> parent, String from, String to) {
+        LinkedList<String> path = new LinkedList<>();
+        String cur = to;
+        while (cur != null) {
+            path.addFirst(cur);
+            if (cur.equals(from)) break;
+            cur = parent.get(cur);
+        }
+        if (!path.isEmpty() && path.getFirst().equals(from)) {
+            return new ArrayList<>(path);
+        }
+        return List.of();
     }
 
     // ==================== DFS ====================
@@ -55,7 +75,7 @@ public class GraphService {
         Set<String> visited = new LinkedHashSet<>();
         List<String> path = new ArrayList<>();
         boolean found = dfsHelper(from, to, maxDepth, visited, path);
-        return new PathDto(found ? path : List.of(), found ? path.size() - 1 : -1, new ArrayList<>(visited));
+        return new PathDto(found ? path : List.of(), found ? path.size() - 1 : -1, new ArrayList<>(visited), 0.0);
     }
 
     private boolean dfsHelper(String current, String target, int depth, Set<String> visited, List<String> path) {
@@ -81,285 +101,317 @@ public class GraphService {
     }
 
     // ==================== DIJKSTRA ====================
-    public DijkstraResult dijkstra(String from, String to) {
-        // Construir el grafo desde Neo4j
-        Map<String, Map<String, Double>> graph = new HashMap<>();
-        Set<String> allNodes = new HashSet<>();
-        
-        for (EdgeRecord row : repo.allEdges()) {
-            if (row == null) continue;
-            
-            String src = row.from();
-            String dst = row.to();
-            Map<String, Object> edge = row.edge();
-            
-            // Validar que ninguno sea null
-            if (src == null || dst == null || edge == null) continue;
-            
-            Object distObj = edge.get("dist");
-            if (distObj == null) continue;
-            
-            double weight = ((Number) distObj).doubleValue();
-            graph.computeIfAbsent(src, k -> new HashMap<>()).put(dst, weight);
-            allNodes.add(src);
-            allNodes.add(dst);
-        }
+    public PathDto dijkstra(String from, String to) {
+        if (Objects.equals(from, to)) return new PathDto(List.of(from), 0, List.of(from), 0.0);
 
-        if (!allNodes.contains(from)) {
-            throw new IllegalArgumentException("Nodo origen no existe: " + from);
-        }
-        if (!allNodes.contains(to)) {
-            throw new IllegalArgumentException("Nodo destino no existe: " + to);
-        }
-
-        // Inicializar distancias
-        Map<String, Double> dist = new HashMap<>();
-        Map<String, String> prev = new HashMap<>();
-        
-        for (String node : allNodes) {
-            dist.put(node, Double.POSITIVE_INFINITY);
-        }
-        dist.put(from, 0.0);
-
-        // Priority Queue con comparador correcto
+        // Mapa de distancias mínimas desde 'from'
+        Map<String, Double> distance = new HashMap<>();
+        // Mapa de padres para reconstruir el camino
+        Map<String, String> parent = new HashMap<>();
+        // Set de nodos visitados (en orden)
+        Set<String> visited = new LinkedHashSet<>();
+        // PriorityQueue para procesar el nodo con menor distancia
         PriorityQueue<NodeDistance> pq = new PriorityQueue<>(Comparator.comparingDouble(nd -> nd.distance));
-        pq.add(new NodeDistance(from, 0.0));
-        
-        Set<String> visited = new HashSet<>();
+
+        distance.put(from, 0.0);
+        pq.offer(new NodeDistance(from, 0.0));
 
         while (!pq.isEmpty()) {
             NodeDistance current = pq.poll();
-            String u = current.node;
-            
+            String u = current.code;
+
+            // Si ya visitamos este nodo, skip
             if (visited.contains(u)) continue;
             visited.add(u);
-            
-            if (u.equals(to)) break;
 
-            Map<String, Double> neighbors = graph.get(u);
-            if (neighbors == null) continue;
+            // Si llegamos al destino, reconstruir camino
+            if (u.equals(to)) {
+                List<String> path = reconstruct(parent, from, to);
+                return new PathDto(path, path.size() - 1, new ArrayList<>(visited), distance.get(to));
+            }
 
-            for (Map.Entry<String, Double> entry : neighbors.entrySet()) {
-                String v = entry.getKey();
-                double weight = entry.getValue();
-                double alt = dist.get(u) + weight;
-                
-                if (alt < dist.get(v)) {
-                    dist.put(v, alt);
-                    prev.put(v, u);
-                    pq.add(new NodeDistance(v, alt));
+            // Expandir vecinos
+            Station hop = repo.oneHop(u);
+            if (hop == null || hop.edges == null) continue;
+
+            for (Connection c : hop.edges) {
+                String v = c.to.code;
+                if (visited.contains(v)) continue;
+
+                // Validar que dist no sea null
+                if (c.dist == null) continue;
+
+                double newDist = distance.get(u) + c.dist;
+
+                // Si encontramos un camino más corto, actualizar
+                if (!distance.containsKey(v) || newDist < distance.get(v)) {
+                    distance.put(v, newDist);
+                    parent.put(v, u);
+                    pq.offer(new NodeDistance(v, newDist));
                 }
             }
         }
 
-        List<String> path = reconstruct(prev, from, to);
-        double totalDist = dist.getOrDefault(to, Double.POSITIVE_INFINITY);
-        
-        return new DijkstraResult(path, path.isEmpty() ? -1 : path.size() - 1, totalDist);
+        // No se encontró camino
+        return new PathDto(List.of(), -1, new ArrayList<>(visited), Double.POSITIVE_INFINITY);
     }
 
-    // ==================== PRIM (Dirigido) ====================
-    public PrimResult primDirected(String startCode) {
-        // Construir el grafo
-        Map<String, Map<String, Double>> graph = new HashMap<>();
-        Set<String> allNodes = new HashSet<>();
+    // Clase auxiliar para Dijkstra
+    private static class NodeDistance {
+        String code;
+        double distance;
 
-        for (EdgeRecord row : repo.allEdges()) {
-            String from = row.from();
-            String to = row.to();
-            Map<String, Object> edge = row.edge();
+        NodeDistance(String code, double distance) {
+            this.code = code;
+            this.distance = distance;
+        }
+    }
 
-            Object distObj = edge.get("dist");
-            if (distObj == null) continue;
-            
-            double weight = ((Number) distObj).doubleValue();
-            graph.computeIfAbsent(from, k -> new HashMap<>()).put(to, weight);
-            allNodes.add(from);
-            allNodes.add(to);
+
+public MSTDto prim(String startNode) {
+    try {
+        List<StationRepo.SimpleEdge> connections = repo.allEdgesSimple();
+        
+        if (connections == null || connections.isEmpty()) {
+            return new MSTDto(List.of(), 0.0, 0, "No hay conexiones en la base de datos");
         }
 
-        if (!graph.containsKey(startCode)) {
-            throw new IllegalArgumentException("No se encontraron conexiones salientes para " + startCode);
+        Set<String> nodes = new HashSet<>();
+        Map<String, List<EdgeInfo>> adjacency = new HashMap<>();
+        
+        // Construir grafo no dirigido
+        for (StationRepo.SimpleEdge conn : connections) {
+            try {
+                String from = conn.getFrom();
+                String to = conn.getTo();
+                Double dist = conn.getDist();
+                
+                if (from == null || to == null || dist == null) continue;
+                
+                nodes.add(from);
+                nodes.add(to);
+                
+                // Agregar arista en ambas direcciones (no dirigido)
+                adjacency.computeIfAbsent(from, k -> new ArrayList<>())
+                         .add(new EdgeInfo(to, dist));
+                adjacency.computeIfAbsent(to, k -> new ArrayList<>())
+                         .add(new EdgeInfo(from, dist));
+                
+            } catch (Exception ex) {
+                System.err.println("Error procesando conexión: " + ex.getMessage());
+                continue;
+            }
+        }
+        
+        if (nodes.isEmpty()) {
+            return new MSTDto(List.of(), 0.0, 0, "No se encontraron nodos válidos");
+        }
+        
+        // Si el nodo inicial no existe, usar el primero disponible
+        if (!nodes.contains(startNode)) {
+            startNode = nodes.iterator().next();
         }
 
-        Set<String> visited = new HashSet<>();
-        List<String> mstEdges = new ArrayList<>();
-        double totalWeight = 0.0;
-
-        // Priority Queue: [peso, origen, destino]
-        PriorityQueue<EdgeWeight> pq = new PriorityQueue<>(Comparator.comparingDouble(e -> e.weight));
-
-        visited.add(startCode);
-        Map<String, Double> neighbors = graph.get(startCode);
-        if (neighbors != null) {
-            for (Map.Entry<String, Double> entry : neighbors.entrySet()) {
-                pq.add(new EdgeWeight(entry.getValue(), startCode, entry.getKey()));
+        Set<String> inMST = new HashSet<>();
+        List<MSTEdge> mstEdges = new ArrayList<>();
+        PriorityQueue<MSTCandidate> pq = new PriorityQueue<>(
+            Comparator.comparingDouble(c -> c.weight)
+        );
+        
+        inMST.add(startNode);
+        
+        // Agregar aristas desde el nodo inicial
+        if (adjacency.containsKey(startNode)) {
+            for (EdgeInfo edge : adjacency.get(startNode)) {
+                if (!inMST.contains(edge.to)) {
+                    pq.offer(new MSTCandidate(startNode, edge.to, edge.weight));
+                }
             }
         }
 
-        while (!pq.isEmpty()) {
-            EdgeWeight edge = pq.poll();
+        double totalWeight = 0.0;
+
+        while (!pq.isEmpty() && inMST.size() < nodes.size()) {
+            MSTCandidate candidate = pq.poll();
             
-            if (visited.contains(edge.to)) continue;
-
-            visited.add(edge.to);
-            mstEdges.add(String.format("%s -- %.1fkm --> %s", edge.from, edge.weight, edge.to));
-            totalWeight += edge.weight;
-
-            Map<String, Double> nextNeighbors = graph.get(edge.to);
-            if (nextNeighbors != null) {
-                for (Map.Entry<String, Double> entry : nextNeighbors.entrySet()) {
-                    if (!visited.contains(entry.getKey())) {
-                        pq.add(new EdgeWeight(entry.getValue(), edge.to, entry.getKey()));
+            if (inMST.contains(candidate.to)) continue;
+            
+            inMST.add(candidate.to);
+            mstEdges.add(new MSTEdge(candidate.from, candidate.to, candidate.weight));
+            totalWeight += candidate.weight;
+            
+            // Agregar nuevas aristas
+            if (adjacency.containsKey(candidate.to)) {
+                for (EdgeInfo edge : adjacency.get(candidate.to)) {
+                    if (!inMST.contains(edge.to)) {
+                        pq.offer(new MSTCandidate(candidate.to, edge.to, edge.weight));
                     }
                 }
             }
         }
 
-        return new PrimResult(mstEdges, visited.size(), totalWeight);
-    }
-
-    // ==================== KRUSKAL ====================
-    public KruskalResult kruskal() {
-        List<Edge> allEdges = new ArrayList<>();
-        Set<String> allNodes = new HashSet<>();
-
-        // Recolectar todas las aristas
-        for (EdgeRecord row : repo.allEdges()) {
-            String from = row.from();
-            String to = row.to();
-            Map<String, Object> edge = row.edge();
-
-            Object distObj = edge.get("dist");
-            if (distObj == null) continue;
-
-            double weight = ((Number) distObj).doubleValue();
-            allEdges.add(new Edge(from, to, weight));
-            allNodes.add(from);
-            allNodes.add(to);
+        String message = String.format("Prim MST: %d nodos conectados de %d totales, %d aristas", 
+                                      inMST.size(), nodes.size(), mstEdges.size());
+        if (inMST.size() < nodes.size()) {
+            message += " - ADVERTENCIA: Grafo desconectado";
         }
 
-        // Ordenar aristas por peso
-        allEdges.sort(Comparator.comparingDouble(e -> e.weight));
-
-        // Union-Find (Disjoint Set Union)
-        UnionFind uf = new UnionFind(allNodes);
+        return new MSTDto(mstEdges, totalWeight, inMST.size(), message);
         
-        List<String> mstEdges = new ArrayList<>();
-        double totalWeight = 0.0;
-        int edgeCount = 0;
+    } catch (Exception e) {
+        e.printStackTrace();
+        return new MSTDto(List.of(), 0.0, 0, "Error: " + e.getMessage());
+    }
+}
 
-        for (Edge edge : allEdges) {
-            if (uf.union(edge.from, edge.to)) {
-                mstEdges.add(String.format("%s -- %.1fkm --> %s", edge.from, edge.weight, edge.to));
-                totalWeight += edge.weight;
-                edgeCount++;
+// ==================== GREEDY: KRUSKAL (MST) ====================
+public MSTDto kruskal() {
+    try {
+        List<StationRepo.SimpleEdge> connections = repo.allEdgesSimple();
+        
+        if (connections == null || connections.isEmpty()) {
+            return new MSTDto(List.of(), 0.0, 0, "No hay conexiones en la base de datos");
+        }
+
+        Set<String> nodes = new HashSet<>();
+        List<WeightedEdge> edges = new ArrayList<>();
+        Set<String> processedPairs = new HashSet<>();
+
+        // Convertir a lista de aristas no dirigidas
+        for (StationRepo.SimpleEdge conn : connections) {
+            try {
+                String from = conn.getFrom();
+                String to = conn.getTo();
+                Double dist = conn.getDist();
                 
-                // MST completo cuando tiene n-1 aristas
-                if (edgeCount == allNodes.size() - 1) break;
+                if (from == null || to == null || dist == null) continue;
+                
+                nodes.add(from);
+                nodes.add(to);
+                
+                // Crear par único (evitar duplicados A-B y B-A)
+                String pair = from.compareTo(to) < 0 
+                    ? from + "|" + to 
+                    : to + "|" + from;
+                
+                if (!processedPairs.contains(pair)) {
+                    edges.add(new WeightedEdge(from, to, dist));
+                    processedPairs.add(pair);
+                }
+                
+            } catch (Exception ex) {
+                System.err.println("Error procesando conexión: " + ex.getMessage());
+                continue;
             }
         }
 
-        return new KruskalResult(mstEdges, edgeCount, totalWeight);
-    }
-
-    // ==================== MÉTODOS AUXILIARES ====================
-    private List<String> reconstruct(Map<String, String> parent, String from, String to) {
-        LinkedList<String> path = new LinkedList<>();
-        for (String cur = to; cur != null; cur = parent.get(cur)) {
-            path.addFirst(cur);
+        if (nodes.isEmpty()) {
+            return new MSTDto(List.of(), 0.0, 0, "No se encontraron nodos válidos");
         }
-        return !path.isEmpty() && path.getFirst().equals(from) ? path : List.of();
-    }
 
-    // ==================== CLASES AUXILIARES ====================
-    
-    // Para Dijkstra
-    private static class NodeDistance {
-        String node;
-        double distance;
+        // Ordenar aristas por peso (de menor a mayor distancia)
+        edges.sort(Comparator.comparingDouble(e -> e.weight));
+
+        // Union-Find para detectar ciclos
+        UnionFind uf = new UnionFind(nodes);
+        List<MSTEdge> mstEdges = new ArrayList<>();
+        double totalWeight = 0.0;
+
+        for (WeightedEdge e : edges) {
+            // Si conectar estos nodos NO crea un ciclo, agregar al MST
+            if (uf.union(e.from, e.to)) {
+                mstEdges.add(new MSTEdge(e.from, e.to, e.weight));
+                totalWeight += e.weight;
+                
+                // Un MST tiene exactamente n-1 aristas
+                if (mstEdges.size() == nodes.size() - 1) break;
+            }
+        }
+
+        String message = String.format("Kruskal MST: %d nodos, %d aristas (esperadas: %d)", 
+                                      nodes.size(), mstEdges.size(), nodes.size() - 1);
+        if (mstEdges.size() < nodes.size() - 1) {
+            message += " - ADVERTENCIA: Grafo desconectado";
+        }
+
+        return new MSTDto(mstEdges, totalWeight, nodes.size(), message);
         
-        NodeDistance(String node, double distance) {
-            this.node = node;
-            this.distance = distance;
+    } catch (Exception e) {
+        e.printStackTrace();
+        return new MSTDto(List.of(), 0.0, 0, "Error: " + e.getMessage());
+    }
+}
+
+// ==================== Clases auxiliares ====================
+
+private static class EdgeInfo {
+    String to;
+    double weight;
+    EdgeInfo(String to, double weight) {
+        this.to = to;
+        this.weight = weight;
+    }
+}
+
+private static class MSTCandidate {
+    String from, to;
+    double weight;
+    MSTCandidate(String from, String to, double weight) {
+        this.from = from;
+        this.to = to;
+        this.weight = weight;
+    }
+}
+
+private static class WeightedEdge {
+    String from, to;
+    double weight;
+    WeightedEdge(String from, String to, double weight) {
+        this.from = from;
+        this.to = to;
+        this.weight = weight;
+    }
+}
+
+// Union-Find para Kruskal
+private static class UnionFind {
+    Map<String, String> parent = new HashMap<>();
+    Map<String, Integer> rank = new HashMap<>();
+
+    UnionFind(Set<String> nodes) {
+        for (String node : nodes) {
+            parent.put(node, node);
+            rank.put(node, 0);
         }
     }
 
-    // Para Prim
-    private static class EdgeWeight {
-        double weight;
-        String from;
-        String to;
+    String find(String x) {
+        if (!parent.get(x).equals(x)) {
+            parent.put(x, find(parent.get(x)));
+        }
+        return parent.get(x);
+    }
+
+    boolean union(String x, String y) {
+        String rootX = find(x);
+        String rootY = find(y);
         
-        EdgeWeight(double weight, String from, String to) {
-            this.weight = weight;
-            this.from = from;
-            this.to = to;
+        if (rootX.equals(rootY)) return false;
+        
+        if (rank.get(rootX) < rank.get(rootY)) {
+            parent.put(rootX, rootY);
+        } else if (rank.get(rootX) > rank.get(rootY)) {
+            parent.put(rootY, rootX);
+        } else {
+            parent.put(rootY, rootX);
+            rank.put(rootX, rank.get(rootX) + 1);
         }
+        return true;
     }
+}
+    // ==================== DTOs ====================
+    public record PathDto(List<String> path, int hops, List<String> visited, double totalDistance) {}
 
-    // Para Kruskal
-    private static class Edge {
-        String from;
-        String to;
-        double weight;
-
-        Edge(String from, String to, double weight) {
-            this.from = from;
-            this.to = to;
-            this.weight = weight;
-        }
-    }
-
-    // Union-Find para Kruskal
-    private static class UnionFind {
-        Map<String, String> parent = new HashMap<>();
-        Map<String, Integer> rank = new HashMap<>();
-
-        UnionFind(Set<String> nodes) {
-            for (String node : nodes) {
-                parent.put(node, node);
-                rank.put(node, 0);
-            }
-        }
-
-        String find(String x) {
-            if (!parent.get(x).equals(x)) {
-                parent.put(x, find(parent.get(x))); // Path compression
-            }
-            return parent.get(x);
-        }
-
-        boolean union(String x, String y) {
-            String rootX = find(x);
-            String rootY = find(y);
-
-            if (rootX.equals(rootY)) return false; // Ya están conectados
-
-            // Union by rank
-            int rankX = rank.get(rootX);
-            int rankY = rank.get(rootY);
-
-            if (rankX < rankY) {
-                parent.put(rootX, rootY);
-            } else if (rankX > rankY) {
-                parent.put(rootY, rootX);
-            } else {
-                parent.put(rootY, rootX);
-                rank.put(rootX, rankX + 1);
-            }
-
-            return true;
-        }
-    }
-
-    // ==================== RECORDS (DTOs) ====================
-    
-    public record PathDto(List<String> path, int hops, List<String> visited) {}
-    
-    public record DijkstraResult(List<String> path, int hops, double totalDistance) {}
-    
-    public record PrimResult(List<String> edges, int nodesConnected, double totalWeight) {}
-    
-    public record KruskalResult(List<String> edges, int edgeCount, double totalWeight) {}
+   public record MSTEdge(String from, String to, double weight) {}
+    public record MSTDto(List<MSTEdge> edges, double totalWeight, int nodeCount, String message) {}         
 }

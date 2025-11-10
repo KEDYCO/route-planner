@@ -4,7 +4,6 @@ import ar.edu.uade.route_planner.domain.Station;
 import java.util.List;
 import org.springframework.data.neo4j.repository.Neo4jRepository;
 import org.springframework.data.neo4j.repository.query.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -28,9 +27,16 @@ public interface StationRepo extends Neo4jRepository<Station, String> {
     @Query("""
     MATCH (s:Station)-[e:CONNECTS]->(t:Station)
     WHERE e.dist IS NOT NULL
-    RETURN {from: s.code, to: t.code, dist: e.dist}
+    RETURN s.code as from, t.code as to, e.dist as dist
     """)
     List<SimpleEdge> allEdgesSimple();
+    
+    // Obtener todas las estaciones de una ciudad
+    @Query("""
+    MATCH (s:Station)-[:IN_CITY]->(c:City {code:$cityCode})
+    RETURN s
+    """)
+    List<Station> findStationsByCity(String cityCode);
     
     // Interfaz de proyección para el resultado
     interface SimpleEdge {

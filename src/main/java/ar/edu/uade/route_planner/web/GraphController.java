@@ -1,6 +1,7 @@
 package ar.edu.uade.route_planner.web;
 
-import ar.edu.uade.route_planner.service.GraphService;
+import ar.edu.uade.route_planner.service.*;
+import ar.edu.uade.route_planner.service.dto.*;
 import ar.edu.uade.route_planner.repo.StationRepo;
 import ar.edu.uade.route_planner.repo.StationRepo.SimpleEdge;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +22,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 @RequiredArgsConstructor
 @CrossOrigin
 public class GraphController {
-    private final GraphService svc;
+    private final PathfindingService pathfindingService;
+    private final GreedyPathfindingService greedyService;
+    private final MSTService mstService;
+    private final CatalogService catalogService;
+    private final TourPlannerService tourService;
+    private final TripOptimizationService optimizationService;
+    private final BacktrackingService backtrackingService;
     private final StationRepo repo;
 
     // Endpoint de diagnóstico
@@ -182,78 +189,86 @@ public class GraphController {
     }
 
     @GetMapping("/bfs")
-    public GraphService.PathDto bfs(@RequestParam String from,
-                                    @RequestParam String to,
-                                    @RequestParam(defaultValue = "6") int maxDepth) {
-        return svc.bfs(from, to, maxDepth);
+    public PathDto bfs(@RequestParam String from,
+                       @RequestParam String to,
+                       @RequestParam(defaultValue = "6") int maxDepth) {
+        return pathfindingService.bfs(from, to, maxDepth);
     }
 
     @GetMapping("/dfs")
-    public GraphService.PathDto dfs(@RequestParam String from, 
-                                    @RequestParam String to, 
-                                    @RequestParam(defaultValue = "6") int depth) {
-        return svc.dfs(from, to, depth);
+    public PathDto dfs(@RequestParam String from, 
+                       @RequestParam String to, 
+                       @RequestParam(defaultValue = "6") int depth) {
+        return pathfindingService.dfs(from, to, depth);
     }
 
     @GetMapping("/dijkstra")
-    public GraphService.PathDto dijkstra(@RequestParam String from, @RequestParam String to) {
-        return svc.dijkstra(from, to);
+    public PathDto dijkstra(@RequestParam String from, @RequestParam String to) {
+        return pathfindingService.dijkstra(from, to);
     }
 
     @GetMapping("/greedy")
-    public GraphService.GreedyPathDto greedyPath(
+    public GreedyPathDto greedyPath(
             @RequestParam String from,
             @RequestParam String to,
             @RequestParam(defaultValue = "combined") String criterion,
             @RequestParam(required = false) Double priceWeight,
             @RequestParam(required = false) Double durationWeight,
             @RequestParam(required = false) Double distWeight) {
-        return svc.greedyPath(from, to, criterion, priceWeight, durationWeight, distWeight);
+        return greedyService.greedyPath(from, to, criterion, priceWeight, durationWeight, distWeight);
     }
 
     @GetMapping("/greedy-city")
-    public GraphService.GreedyPathDto greedyPathByCity(
+    public GreedyPathDto greedyPathByCity(
             @RequestParam String fromCity,
             @RequestParam String toCity,
             @RequestParam(defaultValue = "price") String criterion,
             @RequestParam(required = false) Double priceWeight,
             @RequestParam(required = false) Double durationWeight,
             @RequestParam(required = false) Double distWeight) {
-        return svc.greedyPathByCity(fromCity, toCity, criterion, priceWeight, durationWeight, distWeight);
+        return greedyService.greedyPathByCity(fromCity, toCity, criterion, priceWeight, durationWeight, distWeight);
     }
 
     @GetMapping("/prim")
-    public GraphService.MSTDto prim(@RequestParam String start) {
-        return svc.prim(start);
+    public MSTDto prim(@RequestParam String start) {
+        return mstService.prim(start);
     }
     
     
     @GetMapping("/kruskal")
-    public GraphService.MSTDto kruskal() {
-        return svc.kruskal();
+    public MSTDto kruskal() {
+        return mstService.kruskal();
     }
 
     @GetMapping("/catalog")
-    public GraphService.CatalogDto getCatalog(
+    public CatalogDto getCatalog(
             @RequestParam(defaultValue = "quicksort") String sortAlgorithm) {
-        return svc.getCatalog(sortAlgorithm);
+        return catalogService.getCatalog(sortAlgorithm);
     }
 
     @GetMapping("/multi-city-tour")
-    public GraphService.MultiCityTourDto planMultiCityTour(
+    public MultiCityTourDto planMultiCityTour(
             @RequestParam String startCity,
             @RequestParam List<String> cities,
             @RequestParam(defaultValue = "price") String criterion) {
-        return svc.planMultiCityTour(startCity, cities, criterion);
+        return tourService.planMultiCityTour(startCity, cities, criterion);
     }
 
-    @GetMapping("/backtracking-budget")
-    public GraphService.BacktrackingBudgetDto findTripsWithinBudget(
+    @GetMapping("/optimize-trip")
+    public OptimalTripDto optimizeTrip(
             @RequestParam String startCity,
             @RequestParam double budget,
             @RequestParam(required = false) Integer maxCities,
             @RequestParam(required = false) Boolean returnToOrigin) {
-        return svc.findTripsWithinBudget(startCity, budget, maxCities, returnToOrigin);
+        return optimizationService.optimizeTrip(startCity, budget, maxCities, returnToOrigin);
+    }
+
+    @GetMapping("/all-paths")
+    public AllPathsDto findAllPaths(
+            @RequestParam String fromCity,
+            @RequestParam String toCity,
+            @RequestParam(required = false, defaultValue = "5") Integer maxStops) {
+        return backtrackingService.findAllPaths(fromCity, toCity, maxStops);
     }
 
 }

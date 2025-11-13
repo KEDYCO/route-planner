@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Planner - Algoritmos de Grafos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .algorithm-card {
+            transition: transform 0.2s;
+        }
+        .algorithm-card:hover {
+            transform: translateY(-2px);
+        }
+        .result-box {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-md mb-8">
+        <div class="container mx-auto px-6 py-4">
+            <h1 class="text-4xl font-bold text-indigo-600">🗺️ Route Planner</h1>
+            <p class="text-gray-600 mt-2">Sistema de Planificación de Rutas con Algoritmos de Grafos</p>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-6 pb-12">
+        <!-- Información de Estaciones -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">📍 Estaciones Disponibles</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                    <h3 class="font-semibold text-indigo-600 mb-2">✈️ Aeropuertos</h3>
+                    <ul class="space-y-1 text-gray-700">
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">EZE</code> - Ezeiza (Buenos Aires)</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">GRU</code> - Guarulhos (São Paulo)</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">MAD</code> - Barajas (Madrid)</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">BCN</code> - El Prat (Barcelona)</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">CDG</code> - Charles de Gaulle (París)</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">FCO</code> - Fiumicino (Roma)</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">LHR</code> - Heathrow (Londres)</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">JFK</code> - JFK (Nueva York)</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">BER</code> - Brandenburg (Berlín)</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-green-600 mb-2">🚂 Estaciones de Tren</h3>
+                    <ul class="space-y-1 text-gray-700">
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">MAD-ATO</code> - Atocha (Madrid)</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">BCN-SANTS</code> - Sants (Barcelona)</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">PAR-GARE</code> - Gare du Nord (París)</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">ROM-TER</code> - Termini (Roma)</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">LON-KGX</code> - King's Cross (Londres)</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">BER-HBF</code> - Berlin Hbf (Berlín)</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-purple-600 mb-2">🏙️ Ciudades (para algunos endpoints)</h3>
+                    <ul class="space-y-1 text-gray-700">
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">BUE</code> - Buenos Aires</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">GRU-CITY</code> - São Paulo</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">MAD-CITY</code> - Madrid</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">BCN-CITY</code> - Barcelona</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">PAR-CITY</code> - París</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">ROM-CITY</code> - Roma</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">LON-CITY</code> - Londres</li>
+                        <li><code class="bg-gray-100 px-2 py-1 rounded">BER-CITY</code> - Berlín</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navegación de Algoritmos -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">🎯 Selecciona un Algoritmo</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <button onclick="showAlgorithm('bfs')" class="algorithm-btn bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg">
+                    BFS
+                </button>
+                <button onclick="showAlgorithm('dfs')" class="algorithm-btn bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-4 rounded-lg">
+                    DFS
+                </button>
+                <button onclick="showAlgorithm('dijkstra')" class="algorithm-btn bg-purple-500 hover:bg-purple-600 text-white font-semibold py-3 px-4 rounded-lg">
+                    Dijkstra
+                </button>
+                <button onclick="showAlgorithm('greedy')" class="algorithm-btn bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 px-4 rounded-lg">
+                    Greedy
+                </button>
+                <button onclick="showAlgorithm('greedy-city')" class="algorithm-btn bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-4 rounded-lg">
+                    Greedy City
+                </button>
+                <button onclick="showAlgorithm('prim')" class="algorithm-btn bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-4 rounded-lg">
+                    Prim (MST)
+                </button>
+                <button onclick="showAlgorithm('kruskal')" class="algorithm-btn bg-pink-500 hover:bg-pink-600 text-white font-semibold py-3 px-4 rounded-lg">
+                    Kruskal (MST)
+                </button>
+                <button onclick="showAlgorithm('catalog')" class="algorithm-btn bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg">
+                    Catálogo
+                </button>
+                <button onclick="showAlgorithm('tour')" class="algorithm-btn bg-teal-500 hover:bg-teal-600 text-white font-semibold py-3 px-4 rounded-lg">
+                    Tour TSP
+                </button>
+                <button onclick="showAlgorithm('optimize')" class="algorithm-btn bg-cyan-500 hover:bg-cyan-600 text-white font-semibold py-3 px-4 rounded-lg">
+                    Branch & Bound
+                </button>
+                <button onclick="showAlgorithm('all-paths')" class="algorithm-btn bg-lime-500 hover:bg-lime-600 text-white font-semibold py-3 px-4 rounded-lg">
+                    Backtracking
+                </button>
+            </div>
+        </div>
+
+        <!-- Formularios para cada algoritmo -->
+        <div id="algorithm-forms">
+            <!-- BFS -->
+            <div id="form-bfs" class="algorithm-form hidden bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-2xl font-bold text-blue-600 mb-4">🔵 BFS (Breadth-First Search)</h2>
+                <p class="text-gray-600 mb-4">Búsqueda en anchura - Encuentra el camino con menor número de saltos</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <select id="bfs-from" class="station-select border border-gray-300 rounded-lg px-4 py-2">
+                        <option value="">Cargando estaciones...</option>
+                    </select>
+                    <select id="bfs-to" class="station-select border border-gray-300 rounded-lg px-4 py-2">
+                        <option value="">Cargando estaciones...</option>
+                    </select>
+                    <input id="bfs-depth" type="number" placeholder="Max Depth (default: 6)" value="6" class="border border-gray-300 rounded-lg px-4 py-2">
+                </div>
+                <button onclick="executeBFS()" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg">
+                    🚀 Ejecutar BFS
+                </button>
+            </div>
+
+            <!-- DFS -->
+            <div id="form-dfs" class="algorithm-form hidden bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-2xl font-bold text-green-600 mb-4">🟢 DFS (Depth-First Search)</h2>
+                <p class="text-gray-600 mb-4">Búsqueda en profundidad - Explora hasta el fondo antes de retroceder</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <select id="dfs-from" class="station-select border border-gray-300 rounded-lg px-4 py-2">
+                        <option value="">Cargando estaciones...</option>
+                    </select>
+                    <select id="dfs-to" class="station-select border border-gray-300 rounded-lg px-4 py-2">
+                        <option value="">Cargando estaciones...</option>
+                    </select>
+                    <input id="dfs-depth" type="number" placeholder="Max Depth (default: 6)" value="6" class="border border-gray-300 rounded-lg px-4 py-2">
+                </div>
+                <button onclick="executeDFS()" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-6 rounded-lg">
+                    🚀 Ejecutar DFS
+                </button>
+            </div>
+
+            <!-- Dijkstra -->
+            <div id="form-dijkstra" class="algorithm-form hidden bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-2xl font-bold text-purple-600 mb-4">🟣 Dijkstra (Shortest Path)</h2>
+                <p class="text-gray-600 mb-4">Encuentra el camino más corto por distancia</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <select id="dijkstra-from" class="station-select border border-gray-300 rounded-lg px-4 py-2">
+                        <option value="">Cargando estaciones...</option>
+                    </select>
+                    <select id="dijkstra-to" class="station-select border border-gray-300 rounded-lg px-4 py-2">
+                        <option value="">Cargando estaciones...</option>
+                    </select>
+                </div>
+                <button onclick="executeDijkstra()" class="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-2 px-6 rounded-lg">
+                    🚀 Ejecutar Dijkstra
+                </button>
+            </div>
+
+            <!-- Greedy -->
+            <div id="form-greedy" class="algorithm-form hidden bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-2xl font-bold text-yellow-600 mb-4">🟡 Greedy (Algoritmo Codicioso)</h2>
+                <p class="text-gray-600 mb-4">Busca entre <strong>estaciones específicas</strong> - Optimiza por precio, duración o distancia</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <select id="greedy-from" class="station-select border border-gray-300 rounded-lg px-4 py-2">
+                        <option value="">Cargando estaciones...</option>
+                    </select>
+                    <select id="greedy-to" class="station-select border border-gray-300 rounded-lg px-4 py-2">
+                        <option value="">Cargando estaciones...</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-semibold mb-2">Criterio de optimización:</label>
+                    <select id="greedy-criterion" class="border border-gray-300 rounded-lg px-4 py-2 w-full">
+                        <option value="price">Precio</option>
+                        <option value="duration">Duración</option>
+                        <option value="distance">Distancia</option>
+                        <option value="balanced">Balanceado</option>
+                    </select>
+                </div>
+                <button onclick="executeGreedy()" class="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-6 rounded-lg">
+                    🚀 Ejecutar Greedy
+                </button>
+            </div>
+
+            <!-- Greedy City -->
+            <div id="form-greedy-city" class="algorithm-form hidden bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-2xl font-bold text-orange-600 mb-4">🟠 Greedy por Ciudad</h2>
+                <p class="text-gray-600 mb-4">Busca entre <strong>todas las estaciones de cada ciudad</strong> y devuelve la mejor combinación</p>
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4 text-sm">
+                    <p class="text-blue-800"><strong>💡 Diferencia con Greedy normal:</strong> Este algoritmo prueba TODAS las combinaciones de estaciones entre las ciudades origen y destino. Por ejemplo, de Madrid a Barcelona probará: MAD→BCN, MAD→BCN-SANTS, MAD-ATO→BCN, MAD-ATO→BCN-SANTS y te devuelve la mejor.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <select id="greedy-city-from" class="city-select border border-gray-300 rounded-lg px-4 py-2">
+                        <option value="">Cargando ciudades...</option>
+                    </select>
+                    <select id="greedy-city-to" class="city-select border border-gray-300 rounded-lg px-4 py-2">
+                        <option value="">Cargando ciudades...</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-semibold mb-2">Criterio de optimización:</label>
+                    <select id="greedy-city-criterion" class="border border-gray-300 rounded-lg px-4 py-2 w-full">
+                        <option value="price">Precio</option>
+                        <option value="duration">Duración</option>
+                        <option value="distance">Distancia</option>
+                    </select>
+                </div>
+                <button onclick="executeGreedyCity()" class="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-6 rounded-lg">
+                    🚀 Ejecutar Greedy City
+                </button>
+            </div>
+
+            <!-- Prim -->
+            <div id="form-prim" class="algorithm-form hidden bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-2xl font-bold text-red-600 mb-4">🔴 Prim (Minimum Spanning Tree)</h2>
+                <p class="text-gray-600 mb-4">Árbol de expansión mínima - Crece desde un nodo</p>
+                <div class="mb-4">
+                    <select id="prim-start" class="station-select border border-gray-300 rounded-lg px-4 py-2 w-full">
+                        <option value="">Cargando estaciones...</option>
+                    </select>
+                </div>
+                <button onclick="executePrim()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-6 rounded-lg">
+                    🚀 Ejecutar Prim
+                </button>
+            </div>
+
+            <!-- Kruskal -->
+            <div id="form-kruskal" class="algorithm-form hidden bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-2xl font-bold text-pink-600 mb-4">🩷 Kruskal (Minimum Spanning Tree)</h2>
+                <p class="text-gray-600 mb-4">MST ordenando aristas - No requiere parámetros</p>
+                <button onclick="executeKruskal()" class="bg-pink-500 hover:bg-pink-600 text-white font-semibold py-2 px-6 rounded-lg">
+                    🚀 Ejecutar Kruskal
+                </button>
+            </div>
+
+            <!-- Catalog -->
+            <div id="form-catalog" class="algorithm-form hidden bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-2xl font-bold text-indigo-600 mb-4">📚 Catálogo de Estaciones</h2>
+                <p class="text-gray-600 mb-4">Ordenamiento con QuickSort o MergeSort</p>
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-semibold mb-2">Algoritmo de ordenamiento:</label>
+                    <select id="catalog-sort" class="border border-gray-300 rounded-lg px-4 py-2 w-full">
+                        <option value="quicksort">QuickSort</option>
+                        <option value="mergesort">MergeSort</option>
+                    </select>
+                </div>
+                <button onclick="executeCatalog()" class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-6 rounded-lg">
+                    🚀 Ver Catálogo
+                </button>
+            </div>
+
+            <!-- Tour TSP -->
+            <div id="form-tour" class="algorithm-form hidden bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-2xl font-bold text-teal-600 mb-4">🗺️ Tour Multi-Ciudad (TSP - Programación Dinámica)</h2>
+                <p class="text-gray-600 mb-4">Encuentra el orden óptimo para visitar ciudades</p>
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-semibold mb-2">Ciudad origen:</label>
+                    <select id="tour-start" class="city-select border border-gray-300 rounded-lg px-4 py-2 w-full mb-3">
+                        <option value="">Cargando ciudades...</option>
+                    </select>
+                    
+                    <label class="block text-gray-700 font-semibold mb-2">Ciudades a visitar (mantén Ctrl/Cmd para seleccionar varias):</label>
+                    <select id="tour-cities" multiple size="6" class="city-select border border-gray-300 rounded-lg px-4 py-2 w-full mb-3">
+                        <option value="">Cargando ciudades...</option>
+                    </select>
+                    
+                    <label class="block text-gray-700 font-semibold mb-2">Criterio de optimización:</label>
+                    <select id="tour-criterion" class="border border-gray-300 rounded-lg px-4 py-2 w-full">
+                        <option value="price">Precio</option>
+                        <option value="duration">Duración</option>
+                        <option value="distance">Distancia</option>
+                    </select>
+                </div>
+                <button onclick="executeTour()" class="bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-6 rounded-lg">
+                    🚀 Planificar Tour
+                </button>
+            </div>
+
+            <!-- Optimize Trip -->
+            <div id="form-optimize" class="algorithm-form hidden bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-2xl font-bold text-cyan-600 mb-4">💰 Optimización de Viaje (Branch & Bound)</h2>
+                <p class="text-gray-600 mb-4">Maximiza ciudades visitadas con presupuesto limitado</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <select id="optimize-start" class="city-select border border-gray-300 rounded-lg px-4 py-2">
+                        <option value="">Cargando ciudades...</option>
+                    </select>
+                    <input id="optimize-budget" type="number" placeholder="Presupuesto (€)" class="border border-gray-300 rounded-lg px-4 py-2">
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <input id="optimize-max-cities" type="number" placeholder="Max ciudades (opcional)" class="border border-gray-300 rounded-lg px-4 py-2">
+                    <div class="flex items-center">
+                        <input id="optimize-return" type="checkbox" class="mr-2">
+                        <label>¿Regresar al origen?</label>
+                    </div>
+                </div>
+                <button onclick="executeOptimize()" class="bg-cyan-500 hover:bg-cyan-600 text-white font-semibold py-2 px-6 rounded-lg">
+                    🚀 Optimizar Viaje
+                </button>
+            </div>
+
+            <!-- All Paths (Backtracking) -->
+            <div id="form-all-paths" class="algorithm-form hidden bg-white rounded-lg shadow-lg p-6 mb-8">
+                <h2 class="text-2xl font-bold text-lime-600 mb-4">🔄 Todas las Rutas (Backtracking)</h2>
+                <p class="text-gray-600 mb-4">Encuentra TODAS las rutas posibles entre dos ciudades</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <select id="allpaths-from" class="city-select border border-gray-300 rounded-lg px-4 py-2">
+                        <option value="">Cargando ciudades...</option>
+                    </select>
+                    <select id="allpaths-to" class="city-select border border-gray-300 rounded-lg px-4 py-2">
+                        <option value="">Cargando ciudades...</option>
+                    </select>
+                    <input id="allpaths-stops" type="number" placeholder="Max paradas (default: 5)" value="5" class="border border-gray-300 rounded-lg px-4 py-2">
+                </div>
+                <button onclick="executeAllPaths()" class="bg-lime-500 hover:bg-lime-600 text-white font-semibold py-2 px-6 rounded-lg">
+                    🚀 Buscar Todas las Rutas
+                </button>
+            </div>
+        </div>
+
+        <!-- Resultados -->
+        <div id="results" class="hidden bg-white rounded-lg shadow-lg p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-gray-800">📊 Resultados</h2>
+                <span id="loading" class="hidden text-blue-500 font-semibold">⏳ Cargando...</span>
+            </div>
+            <div id="results-content" class="result-box">
+                <!-- El contenido se genera dinámicamente con JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
